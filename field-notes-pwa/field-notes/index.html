@@ -1,0 +1,1353 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>현장 조사 노트</title>
+<meta name="theme-color" content="#0b7a75">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
+<style>
+/* Layout: single-column phone notebook with four views (입력 / 지도 / 목록 / 더보기) on a bottom tab bar. */
+:root {
+  color-scheme: light;
+  --bg: #edf1f0;
+  --surface: #fbfcfc;
+  --ink: #14201f;
+  --muted: #566866;
+  --line: #d0dad8;
+  --accent: #0b7a75;
+  --accent-ink: #ffffff;
+  --accent-soft: #d6ebe9;
+  --warn: #a8500a;
+  --danger: #b3261e;
+  --font-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans CJK KR", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1716; --surface: #172221; --ink: #e4eeec; --muted: #94a9a6; --line: #2a3b39;
+    --accent: #4cc3bb; --accent-ink: #06201f; --accent-soft: #1c3533; --warn: #e9a35f; --danger: #f0857d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1716; --surface: #172221; --ink: #e4eeec; --muted: #94a9a6; --line: #2a3b39;
+  --accent: #4cc3bb; --accent-ink: #06201f; --accent-soft: #1c3533; --warn: #e9a35f; --danger: #f0857d;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  padding-bottom: 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 560px; margin: 0 auto; min-width: 0; }
+h1, h2, h3, p { margin: 0; }
+
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 4px 2px 14px; }
+.top h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.top .right { display: flex; align-items: center; gap: 8px; }
+.top .count { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.pill { font-size: 11px; font-weight: 700; color: var(--warn); border: 1px solid var(--warn); border-radius: 99px; padding: 0 8px; }
+.banner { background: var(--accent-soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+.banner.bad { border-color: var(--danger); }
+
+.view { display: none; }
+.view.on { display: block; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.panel h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid > * { min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field.full { grid-column: 1 / -1; }
+label, .lbl { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.02em; }
+input, select, textarea {
+  font: inherit; font-size: 16px; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 11px; min-height: 44px; width: 100%; min-width: 0;
+}
+textarea { min-height: 84px; resize: vertical; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); letter-spacing: 0; }
+.check input { width: 20px; height: 20px; min-height: 0; padding: 0; accent-color: var(--accent); }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible, .btn:focus-within {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.sci { font-style: italic; }
+.mono { font-family: var(--font-mono); }
+.hint { font-size: 12px; color: var(--muted); min-height: 18px; }
+.hint.warn { color: var(--warn); }
+.hint.ok { color: var(--accent); }
+.vis-off { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+button, .btn {
+  font: inherit; font-size: 15px; font-weight: 500; min-height: 44px; padding: 0 16px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+button.danger { color: var(--danger); border-color: var(--danger); }
+button.danger.sure { background: var(--danger); color: var(--surface); }
+button.small { min-height: 36px; font-size: 13px; padding: 0 12px; }
+button[disabled] { opacity: 0.5; cursor: default; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+.row > * { flex: 1 1 auto; }
+
+.thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.thumb { position: relative; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.thumb button { position: absolute; top: 2px; right: 2px; min-height: 26px; width: 26px; padding: 0; border-radius: 13px; font-size: 14px; line-height: 1; background: var(--surface); }
+
+.search { margin-bottom: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 10px; min-width: 0; }
+.card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.card-top .mono { font-size: 12px; color: var(--muted); }
+.badge { font-size: 12px; font-weight: 700; background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 2px 10px; white-space: nowrap; }
+.card h3 { font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
+.chip { display: inline-block; font-size: 11px; font-weight: 500; border: 1px solid var(--warn); color: var(--warn); border-radius: 99px; padding: 0 7px; margin-left: 6px; vertical-align: 2px; }
+.card .sci { color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.card .site { margin-top: 6px; font-size: 14px; overflow-wrap: anywhere; }
+.card .meta { font-size: 13px; color: var(--muted); }
+.card .coord { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+.card .memo { font-size: 14px; margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.card .actions { display: flex; gap: 8px; margin-top: 12px; }
+
+.empty { text-align: center; padding: 28px 12px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; }
+.empty h2 { font-size: 16px; margin-bottom: 6px; }
+.empty p { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+.empty .row { justify-content: center; }
+.empty .row > * { flex: 0 1 auto; }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.stat b { display: block; font-family: var(--font-mono); font-size: 20px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.note b { color: var(--ink); font-weight: 500; }
+details { margin-top: 12px; }
+summary { cursor: pointer; font-size: 14px; min-height: 36px; display: flex; align-items: center; }
+#csvBox { font-family: var(--font-mono); font-size: 12px; min-height: 140px; white-space: pre; overflow: auto; }
+
+/* map */
+.mapbar { display: flex; gap: 8px; margin-bottom: 8px; }
+.mapbar select { flex: 1 1 auto; min-height: 36px; padding: 4px 8px; font-size: 14px; }
+.mapbar button { flex: 0 0 auto; }
+#map { position: relative; z-index: 0; isolation: isolate; height: 60vh; height: 60dvh; min-height: 300px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.leaflet-container { font-family: var(--font-body); }
+.leaflet-popup-content { color: #14201f; font-size: 13px; line-height: 1.45; }
+.gps { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin: 8px 2px 12px; min-height: 18px; }
+.layer { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.layer:first-child { border-top: 0; }
+.layer .nm { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.layer .nm small { display: block; color: var(--muted); font-size: 12px; }
+.layer input[type="checkbox"] { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); flex: 0 0 auto; }
+
+/* camera */
+.cam { position: fixed; inset: 0; background: #000; z-index: 40; display: flex; flex-direction: column; }
+.cam video { flex: 1 1 auto; min-height: 0; width: 100%; object-fit: contain; background: #000; }
+.cam.flash video { opacity: 0.35; }
+.cam-stamp { position: absolute; left: 0; right: 0; bottom: calc(104px + env(safe-area-inset-bottom, 0px)); padding: 0 16px; color: #fff; font: 600 13px/1.4 var(--font-mono); white-space: pre-line; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.cam-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: #000; }
+.cam-bar button { background: #222; color: #fff; border-color: #444; min-width: 76px; }
+.cam-bar .shot { width: 68px; height: 68px; min-width: 68px; border-radius: 50%; border: 4px solid #fff; background: #fff; padding: 0; box-shadow: inset 0 0 0 4px #000; }
+.cam-bar .cnt { color: #fff; font-family: var(--font-mono); font-size: 13px; min-width: 76px; text-align: right; }
+
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); z-index: 5; }
+.tabs-in { display: flex; max-width: 560px; margin: 0 auto; }
+.tabs a { flex: 1; text-align: center; padding: 14px 4px; min-height: 52px; font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none; border-top: 3px solid transparent; margin-top: -1px; }
+.tabs a.on { color: var(--accent); border-top-color: var(--accent); font-weight: 700; }
+
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 60; max-width: calc(100% - 32px); }
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.lightbox img { max-width: 100%; max-height: 100%; border-radius: 6px; }
+
+@media (max-width: 380px) { .grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>현장 조사 노트</h1>
+    <div class="right">
+      <span class="pill" id="net" hidden>오프라인</span>
+      <span class="count" id="count">기록 0건</span>
+    </div>
+  </header>
+  <div class="banner bad" id="storeWarn" hidden>이 브라우저에서는 기록이 저장되지 않아요. 지금 입력한 내용은 화면을 닫으면 사라지니, 더보기에서 바로 파일로 저장하세요.</div>
+
+  <!-- 입력 -->
+  <section class="view" id="view-new" aria-label="기록 입력">
+    <form class="panel" id="form" autocomplete="off">
+      <h2 id="formTitle">새 기록</h2>
+      <div class="grid">
+        <div class="field full">
+          <label for="f-date">조사 일시</label>
+          <input type="datetime-local" id="f-date">
+        </div>
+        <div class="field full">
+          <label for="f-site">지점명</label>
+          <input type="text" id="f-site" placeholder="예: 남한강 상류 ○○교 아래">
+        </div>
+        <div class="field">
+          <label for="f-name">종명 (국명)</label>
+          <input type="text" id="f-name" placeholder="예: 송사리류">
+        </div>
+        <div class="field">
+          <label for="f-sci">학명</label>
+          <input type="text" id="f-sci" class="sci" placeholder="예: Oryzias sp." autocapitalize="off" autocorrect="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="f-ident">동정</label>
+          <select id="f-ident"><option>확정</option><option>추정</option><option>미정</option></select>
+        </div>
+        <div class="field">
+          <label for="f-count">개체수</label>
+          <input type="number" id="f-count" inputmode="numeric" min="0" step="1" placeholder="0">
+        </div>
+        <div class="field full">
+          <span class="lbl">좌표</span>
+          <button type="button" class="primary" id="gpsBtn">현재 위치로 입력</button>
+        </div>
+        <div class="field">
+          <label for="f-lat">위도 (Y)</label>
+          <input type="text" id="f-lat" class="mono" inputmode="decimal" placeholder="37.321900">
+        </div>
+        <div class="field">
+          <label for="f-lon">경도 (X)</label>
+          <input type="text" id="f-lon" class="mono" inputmode="decimal" placeholder="126.830900">
+        </div>
+        <div class="field full"><span class="hint" id="coordHint"></span></div>
+        <div class="field full">
+          <label for="f-paste">좌표 붙여넣기 (선택)</label>
+          <input type="text" id="f-paste" placeholder="37.3219, 126.8309">
+        </div>
+        <div class="field">
+          <label for="f-habitat">서식지</label>
+          <select id="f-habitat">
+            <option value="">선택 안 함</option>
+            <option>하천 본류</option>
+            <option>하천 지류·소하천</option>
+            <option>호수·저수지</option>
+            <option>논·농수로</option>
+            <option>습지·웅덩이</option>
+            <option>산림·계곡</option>
+            <option>기타</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-method">채집 방법</label>
+          <select id="f-method">
+            <option value="">선택 안 함</option>
+            <option>뜰채</option>
+            <option>투망</option>
+            <option>족대</option>
+            <option>손채집</option>
+            <option>육안 관찰</option>
+            <option>기타</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="f-memo">메모</label>
+          <textarea id="f-memo" placeholder="수심, 유속, 바닥 재질, 수온, 특징 등"></textarea>
+        </div>
+        <div class="field full">
+          <span class="lbl">사진 (최대 6장)</span>
+          <div class="row">
+            <button type="button" class="primary" id="camBtn">사진 촬영</button>
+            <label class="btn" for="f-photo">갤러리에서 선택</label>
+          </div>
+          <input type="file" id="f-photo" class="vis-off" accept="image/*" multiple>
+          <label class="check" for="f-stamp"><input type="checkbox" id="f-stamp" checked> 사진에 좌표·날짜 넣기</label>
+          <div class="thumbs" id="formThumbs"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button type="submit" class="primary" id="saveBtn">저장</button>
+        <button type="button" id="cancelBtn" hidden>수정 취소</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- 지도 -->
+  <section class="view" id="view-map" aria-label="지도">
+    <div class="mapbar">
+      <select id="basemap" aria-label="배경 지도">
+        <option value="vworld">VWorld 위성</option>
+        <option value="vworld-h">VWorld 위성 + 지명</option>
+        <option value="google">구글 위성</option>
+        <option value="esri">Esri 위성</option>
+      </select>
+      <button type="button" class="small" id="locBtn">내 위치</button>
+      <button type="button" class="small" id="fitBtn">전체 보기</button>
+    </div>
+    <p class="hint warn" id="mapNote" hidden></p>
+    <div id="map" role="application" aria-label="지도"></div>
+    <div class="gps" id="gpsStatus">위치 확인 전</div>
+    <div class="panel">
+      <h2>경로·조사 범위 파일</h2>
+      <div class="row">
+        <label class="btn" for="geoFile">KML · GPX 불러오기</label>
+      </div>
+      <input type="file" id="geoFile" class="vis-off" multiple>
+      <div id="layerList"></div>
+      <p class="note">GPX(경로, 웨이포인트), KML(점, 선, 면), GeoJSON을 읽어요. KMZ는 압축을 풀어 KML만 올려 주세요. 불러온 파일은 이 폰에 저장돼 오프라인에서도 보여요.</p>
+    </div>
+  </section>
+
+  <!-- 목록 -->
+  <section class="view" id="view-list" aria-label="기록 목록">
+    <div class="search"><input type="search" id="q" placeholder="지점, 종명, 학명, 메모 검색" aria-label="기록 검색"></div>
+    <div id="list"></div>
+  </section>
+
+  <!-- 더보기 -->
+  <section class="view" id="view-more" aria-label="더보기">
+    <div class="stats">
+      <div class="stat"><b id="st-n">0</b><span>전체 기록</span></div>
+      <div class="stat"><b id="st-xy">0</b><span>좌표 있음</span></div>
+      <div class="stat"><b id="st-ph">0</b><span>사진</span></div>
+    </div>
+    <div class="panel">
+      <h2>CSV로 내보내기</h2>
+      <div class="row">
+        <button type="button" class="primary" id="csvSave">CSV 저장</button>
+        <button type="button" id="csvCopy">CSV 복사</button>
+      </div>
+      <p class="note">엑셀에서 한글이 깨지지 않게 저장돼요. QGIS에서는 <b>레이어 &gt; 레이어 추가 &gt; 구분자로 분리된 텍스트 레이어</b>에서 X를 경도, Y를 위도, 좌표계를 EPSG:4326으로 지정하세요. 사진은 CSV에 들어가지 않고 장수만 기록돼요.</p>
+      <details>
+        <summary>CSV 내용 보기</summary>
+        <textarea id="csvBox" readonly aria-label="CSV 내용"></textarea>
+      </details>
+    </div>
+    <div class="panel">
+      <h2>지도 설정</h2>
+      <div class="field">
+        <label for="vkey">VWorld 인증키</label>
+        <input type="text" id="vkey" class="mono" placeholder="발급받은 인증키" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button type="button" id="vkeySave">인증키 저장</button>
+      </div>
+      <p class="note">vworld.kr에서 인증키를 발급받고, 사용 URL에 이 앱의 주소를 등록해야 위성영상이 나와요. 키가 없으면 Esri 위성으로 대신 보여요. 위성 배경지도는 인터넷이 연결돼 있어야 불러와요.</p>
+    </div>
+    <div class="panel">
+      <h2>백업과 옮기기</h2>
+      <div class="row">
+        <button type="button" id="bkSave">백업 파일 저장</button>
+        <label class="btn" for="bkLoad">백업 불러오기</label>
+      </div>
+      <input type="file" id="bkLoad" class="vis-off">
+      <p class="note">기록은 지금 쓰는 폰에만 저장돼요. 폰을 바꾸거나 앱 데이터를 지우면 사라지니, 백업 파일(사진, 경로 파일 포함)을 가끔 저장해 두세요. 다른 폰에서 불러오면 기록이 합쳐져요.</p>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" aria-label="화면 이동">
+  <div class="tabs-in">
+    <a href="#new" id="tab-new">입력</a>
+    <a href="#map" id="tab-map">지도</a>
+    <a href="#list" id="tab-list">목록</a>
+    <a href="#more" id="tab-more">더보기</a>
+  </div>
+</nav>
+
+<div class="cam" id="cam" hidden>
+  <video id="camVideo" playsinline muted autoplay></video>
+  <div class="cam-stamp" id="camStamp"></div>
+  <div class="cam-bar">
+    <button type="button" id="camClose">완료</button>
+    <button type="button" class="shot" id="camShot" aria-label="촬영"></button>
+    <span class="cnt" id="camCount"></span>
+  </div>
+</div>
+<div id="toast" role="status" hidden></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var VIEWS = ['new', 'map', 'list', 'more'];
+  var MAX_PHOTOS = 6;
+  var records = [], layers = [];
+  var storageOk = true, idb = null;
+  var editingId = null, formPhotos = [], formAcc = null;
+  var confirmId = null, confirmTimer = null, layerConfirm = null, layerTimer = null, toastTimer = null;
+  var curPos = null, watchId = null, firstFixDone = false;
+  var map = null, baseLayer = null, hybLayer = null, recGroup = null, fileGroups = {}, myMarker = null, myCircle = null;
+  var camStream = null, camTimer = null;
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 2800);
+  }
+  function getSet(k, d) { try { var v = localStorage.getItem('fn_' + k); return v === null ? d : v; } catch (e) { return d; } }
+  function setSet(k, v) { try { localStorage.setItem('fn_' + k, v); } catch (e) { /* ignore */ } }
+
+  /* ---------- storage ---------- */
+  function openDB() {
+    return new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('no indexedDB')); return; }
+      var r;
+      try { r = indexedDB.open('field-notes', 2); } catch (e) { reject(e); return; }
+      r.onupgradeneeded = function () {
+        var db = r.result;
+        if (!db.objectStoreNames.contains('records')) db.createObjectStore('records', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('layers')) db.createObjectStore('layers', { keyPath: 'id' });
+      };
+      r.onsuccess = function () { resolve(r.result); };
+      r.onerror = function () { reject(r.error); };
+      r.onblocked = function () { reject(new Error('blocked')); };
+    });
+  }
+  function idbRun(store, mode, fn) {
+    return new Promise(function (resolve, reject) {
+      var tx = idb.transaction(store, mode);
+      var req = fn(tx.objectStore(store));
+      tx.oncomplete = function () { resolve(req ? req.result : undefined); };
+      tx.onerror = function () { reject(tx.error); };
+      tx.onabort = function () { reject(tx.error); };
+    });
+  }
+  function persist(store, obj) {
+    if (!storageOk) return Promise.resolve(true);
+    return idbRun(store, 'readwrite', function (st) { return st.put(obj); }).then(function () { return true; }, function () { return false; });
+  }
+  function unpersist(store, id) {
+    if (!storageOk) return Promise.resolve(true);
+    return idbRun(store, 'readwrite', function (st) { return st.delete(id); }).then(function () { return true; }, function () { return false; });
+  }
+  function loadAll() {
+    return openDB().then(function (db) {
+      idb = db;
+      return Promise.all([
+        idbRun('records', 'readonly', function (st) { return st.getAll(); }),
+        idbRun('layers', 'readonly', function (st) { return st.getAll(); })
+      ]);
+    }).then(function (r) {
+      records = r[0] || [];
+      layers = r[1] || [];
+    }, function () {
+      storageOk = false;
+      $('storeWarn').hidden = false;
+    });
+  }
+
+  /* ---------- helpers ---------- */
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function nowLocal() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function stampNow() { return nowLocal().replace('T', ' ') + ':' + pad2(new Date().getSeconds()); }
+  function showDate(v) { return (v || '').replace('T', ' '); }
+  function newId() { return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function numOrNull(s) {
+    var t = String(s === undefined || s === null ? '' : s).trim();
+    if (t === '') return null;
+    var n = Number(t);
+    return isFinite(n) ? n : NaN;
+  }
+  function hasXY(r) { return r.lat !== null && r.lat !== undefined && r.lon !== null && r.lon !== undefined; }
+  function fmtCoord(lat, lon) {
+    return (lat >= 0 ? 'N ' : 'S ') + Math.abs(lat).toFixed(5) + '  ' + (lon >= 0 ? 'E ' : 'W ') + Math.abs(lon).toFixed(5);
+  }
+  function parseCoord(text) {
+    var m = String(text).match(/(-?\d{1,3}(?:\.\d+)?)\s*°?\s*[NSns]?\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
+    if (!m) return null;
+    var a = Number(m[1]), b = Number(m[2]);
+    if (Math.abs(a) > 90 && Math.abs(b) <= 90) { var t = a; a = b; b = t; }
+    return { lat: a, lon: b };
+  }
+  function inKorea(lat, lon) { return lat >= 33 && lat <= 39 && lon >= 124 && lon <= 132; }
+  function currentView() {
+    var n = location.hash.replace('#', '');
+    return VIEWS.indexOf(n) >= 0 ? n : 'new';
+  }
+
+  function checkCoordHint() {
+    var h = $('coordHint');
+    var lat = numOrNull($('f-lat').value), lon = numOrNull($('f-lon').value);
+    h.className = 'hint';
+    if (lat === null && lon === null) { h.textContent = ''; return; }
+    if (lat === null || lon === null || isNaN(lat) || isNaN(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+      h.className = 'hint warn';
+      h.textContent = '위도와 경도를 숫자로 둘 다 입력하세요. 위도는 -90에서 90, 경도는 -180에서 180 사이예요.';
+      return;
+    }
+    if (!inKorea(lat, lon)) {
+      h.className = 'hint warn';
+      h.textContent = '대한민국 범위를 벗어난 좌표예요. 위도와 경도 순서를 확인하세요.';
+      return;
+    }
+    h.className = 'hint ok';
+    h.textContent = '좌표 확인됨' + (formAcc !== null ? ' · 정확도 ±' + formAcc + 'm' : '');
+  }
+
+  /* ---------- GPS ---------- */
+  function gpsErrText(e) {
+    if (!navigator.geolocation || !e || e.code === 0) return '이 기기에서는 위치를 쓸 수 없어요.';
+    if (e.code === 1) return '위치 권한이 꺼져 있어요. 브라우저 사이트 설정에서 위치를 허용하세요.';
+    if (e.code === 3) return '위치를 찾는 데 시간이 걸려요. 하늘이 트인 곳에서 다시 눌러 보세요.';
+    return '위치를 확인하지 못했어요.';
+  }
+  function getFix() {
+    return new Promise(function (resolve, reject) {
+      if (!navigator.geolocation) { reject({ code: 0 }); return; }
+      navigator.geolocation.getCurrentPosition(function (p) {
+        resolve({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, ts: Date.now() });
+      }, function (e) { reject(e); }, { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 });
+    });
+  }
+  function updateGpsStatus() {
+    $('gpsStatus').textContent = curPos ? fmtCoord(curPos.lat, curPos.lon) + '  ±' + Math.round(curPos.acc) + 'm' : '위치 확인 중…';
+  }
+  function onPos(p) {
+    curPos = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, ts: Date.now() };
+    updateMy();
+    updateGpsStatus();
+  }
+  function onPosErr(e) { $('gpsStatus').textContent = gpsErrText(e); }
+  function startWatch() {
+    if (!navigator.geolocation || watchId !== null) return;
+    watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 3000, timeout: 30000 });
+  }
+  function stopWatch() {
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  }
+  function syncWatch() {
+    if (currentView() === 'map' || camStream) startWatch(); else stopWatch();
+  }
+
+  /* ---------- photos ---------- */
+  function renderFormThumbs() {
+    var box = $('formThumbs');
+    box.textContent = '';
+    formPhotos.forEach(function (src, i) {
+      var t = el('div', 'thumb');
+      var img = el('img');
+      img.src = src;
+      img.alt = '첨부 사진 ' + (i + 1);
+      img.addEventListener('click', function () { openPhoto(src); });
+      var x = el('button', null, '×');
+      x.type = 'button';
+      x.setAttribute('aria-label', '사진 ' + (i + 1) + ' 삭제');
+      x.addEventListener('click', function () { formPhotos.splice(i, 1); renderFormThumbs(); updateCamCount(); });
+      t.appendChild(img);
+      t.appendChild(x);
+      box.appendChild(t);
+    });
+  }
+  function stampLinesFor(when, lat, lon, acc, site) {
+    var l = [when];
+    if (lat !== null && lon !== null && !isNaN(lat) && !isNaN(lon)) {
+      l.push(fmtCoord(lat, lon) + (acc !== null && acc !== undefined ? '  ±' + Math.round(acc) + 'm' : ''));
+    } else {
+      l.push('좌표 없음');
+    }
+    if (site) l.push(site);
+    return l;
+  }
+  function liveStampLines() {
+    var lat, lon, acc;
+    if (curPos && Date.now() - curPos.ts < 120000) { lat = curPos.lat; lon = curPos.lon; acc = curPos.acc; }
+    else { lat = numOrNull($('f-lat').value); lon = numOrNull($('f-lon').value); acc = formAcc; }
+    return stampLinesFor(stampNow(), lat, lon, acc, $('f-site').value.trim());
+  }
+  function formStampLines() {
+    var when = ($('f-date').value || nowLocal()).replace('T', ' ');
+    if (when.length === 16) when += ':00';
+    return stampLinesFor(when, numOrNull($('f-lat').value), numOrNull($('f-lon').value), formAcc, $('f-site').value.trim());
+  }
+  function drawStamp(ctx, w, h, lines) {
+    var fs = Math.max(14, Math.round(Math.min(w, h) / 28));
+    var lh = Math.round(fs * 1.35), pad = Math.round(fs * 0.6);
+    ctx.font = 'bold ' + fs + 'px sans-serif';
+    ctx.textBaseline = 'top';
+    var mw = 0;
+    lines.forEach(function (t) { mw = Math.max(mw, ctx.measureText(t).width); });
+    var bw = Math.min(w - pad, Math.ceil(mw + pad * 2));
+    var bh = lines.length * lh + pad * 2 - (lh - fs);
+    var x = Math.round(pad / 2), y = h - bh - Math.round(pad / 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(x, y, bw, bh);
+    ctx.fillStyle = '#fff';
+    lines.forEach(function (t, i) { ctx.fillText(t, x + pad, y + pad + i * lh); });
+  }
+  function fileToDataURL(file, lines) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var s = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+        var w = Math.max(1, Math.round(img.naturalWidth * s)), h = Math.max(1, Math.round(img.naturalHeight * s));
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        if (lines) drawStamp(ctx, w, h, lines);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('image')); };
+      img.src = url;
+    });
+  }
+  function addPhotos(files) {
+    var list = Array.prototype.slice.call(files);
+    var room = MAX_PHOTOS - formPhotos.length;
+    if (room <= 0) { toast('사진은 한 기록에 6장까지 넣을 수 있어요'); return Promise.resolve(); }
+    if (list.length > room) { list = list.slice(0, room); toast('6장까지만 추가했어요'); }
+    var lines = $('f-stamp').checked ? formStampLines() : null;
+    return list.reduce(function (p, f) {
+      return p.then(function () {
+        return fileToDataURL(f, lines).then(function (d) { formPhotos.push(d); }, function () { toast('사진 하나를 읽지 못했어요'); });
+      });
+    }, Promise.resolve()).then(renderFormThumbs);
+  }
+  function openPhoto(src) {
+    var lb = el('div', 'lightbox');
+    var img = el('img');
+    img.src = src;
+    img.alt = '확대한 사진';
+    lb.appendChild(img);
+    lb.addEventListener('click', function () { document.body.removeChild(lb); });
+    document.body.appendChild(lb);
+  }
+
+  /* camera */
+  function updateCamCount() { $('camCount').textContent = formPhotos.length + ' / ' + MAX_PHOTOS; }
+  function tickStamp() { $('camStamp').textContent = liveStampLines().join('\n'); }
+  function openCamera() {
+    if (formPhotos.length >= MAX_PHOTOS) { toast('사진은 한 기록에 6장까지 넣을 수 있어요'); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('f-photo').click(); return; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }).then(function (s) {
+      camStream = s;
+      var v = $('camVideo');
+      v.srcObject = s;
+      var pl = v.play();
+      if (pl && pl.catch) pl.catch(function () { /* ignore */ });
+      $('cam').hidden = false;
+      document.body.style.overflow = 'hidden';
+      startWatch();
+      tickStamp();
+      camTimer = setInterval(tickStamp, 1000);
+      updateCamCount();
+    }, function () {
+      toast('카메라를 열지 못했어요. 갤러리에서 선택해 주세요');
+      $('f-photo').click();
+    });
+  }
+  function closeCamera() {
+    if (camStream) { camStream.getTracks().forEach(function (t) { t.stop(); }); camStream = null; }
+    clearInterval(camTimer);
+    $('camVideo').srcObject = null;
+    $('cam').hidden = true;
+    document.body.style.overflow = '';
+    syncWatch();
+  }
+  function shoot() {
+    var v = $('camVideo');
+    if (!v.videoWidth || formPhotos.length >= MAX_PHOTOS) return;
+    var s = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight));
+    var w = Math.round(v.videoWidth * s), h = Math.round(v.videoHeight * s);
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    ctx.drawImage(v, 0, 0, w, h);
+    if ($('f-stamp').checked) drawStamp(ctx, w, h, liveStampLines());
+    formPhotos.push(c.toDataURL('image/jpeg', 0.85));
+    renderFormThumbs();
+    updateCamCount();
+    var cam = $('cam');
+    cam.className = 'cam flash';
+    setTimeout(function () { cam.className = 'cam'; }, 140);
+    if (formPhotos.length >= MAX_PHOTOS) closeCamera();
+  }
+
+  /* ---------- form ---------- */
+  function resetForm() {
+    editingId = null;
+    formAcc = null;
+    $('formTitle').textContent = '새 기록';
+    $('f-date').value = nowLocal();
+    ['f-site', 'f-name', 'f-sci', 'f-count', 'f-paste', 'f-lat', 'f-lon', 'f-memo'].forEach(function (id) { $(id).value = ''; });
+    $('f-ident').value = '확정';
+    $('f-habitat').value = '';
+    $('f-method').value = '';
+    formPhotos = [];
+    renderFormThumbs();
+    checkCoordHint();
+    $('cancelBtn').hidden = true;
+    $('saveBtn').textContent = '저장';
+  }
+  function setForm(r) {
+    editingId = r.id;
+    formAcc = r.acc === undefined ? null : r.acc;
+    $('formTitle').textContent = '기록 수정';
+    $('f-date').value = r.date || nowLocal();
+    $('f-site').value = r.site || '';
+    $('f-name').value = r.nameKo || '';
+    $('f-sci').value = r.nameSci || '';
+    $('f-ident').value = r.ident || '확정';
+    $('f-count').value = r.count === null || r.count === undefined ? '' : r.count;
+    $('f-paste').value = '';
+    $('f-lat').value = hasXY(r) ? r.lat : '';
+    $('f-lon').value = hasXY(r) ? r.lon : '';
+    $('f-habitat').value = r.habitat || '';
+    $('f-method').value = r.method || '';
+    $('f-memo').value = r.memo || '';
+    formPhotos = (r.photos || []).slice();
+    renderFormThumbs();
+    checkCoordHint();
+    $('cancelBtn').hidden = false;
+    $('saveBtn').textContent = '수정 저장';
+  }
+  function onSave(ev) {
+    ev.preventDefault();
+    var site = $('f-site').value.trim();
+    var nameKo = $('f-name').value.trim();
+    var nameSci = $('f-sci').value.trim();
+    if (!site && !nameKo && !nameSci) { toast('지점명이나 종명 중 하나는 입력하세요'); $('f-site').focus(); return; }
+    var lat = numOrNull($('f-lat').value), lon = numOrNull($('f-lon').value);
+    if ((lat === null) !== (lon === null) || isNaN(lat) || isNaN(lon) || (lat !== null && (Math.abs(lat) > 90 || Math.abs(lon) > 180))) {
+      checkCoordHint();
+      toast('좌표를 확인하세요');
+      $('f-lat').focus();
+      return;
+    }
+    var cnt = numOrNull($('f-count').value);
+    if (cnt !== null && (isNaN(cnt) || cnt < 0)) { toast('개체수는 0 이상의 숫자로 입력하세요'); $('f-count').focus(); return; }
+    var existing = null;
+    records.forEach(function (r) { if (r.id === editingId) existing = r; });
+    var rec = {
+      id: existing ? existing.id : newId(),
+      createdAt: existing ? existing.createdAt : Date.now(),
+      date: $('f-date').value || nowLocal(),
+      site: site, nameKo: nameKo, nameSci: nameSci,
+      ident: $('f-ident').value,
+      count: cnt === null ? null : Math.round(cnt),
+      lat: lat, lon: lon,
+      acc: lat === null ? null : formAcc,
+      habitat: $('f-habitat').value,
+      method: $('f-method').value,
+      memo: $('f-memo').value.trim(),
+      photos: formPhotos.slice()
+    };
+    var btn = $('saveBtn');
+    btn.disabled = true;
+    persist('records', rec).then(function (ok) {
+      btn.disabled = false;
+      if (!ok) { toast('저장 공간이 부족해요. 사진을 줄이거나 백업 후 오래된 기록을 지우세요'); return; }
+      var found = false;
+      records = records.map(function (r) { if (r.id === rec.id) { found = true; return rec; } return r; });
+      if (!found) records.push(rec);
+      toast(existing ? '수정했어요' : '저장했어요');
+      resetForm();
+      updateCount();
+      location.hash = '#list';
+    });
+  }
+
+  /* ---------- list ---------- */
+  function updateCount() { $('count').textContent = '기록 ' + records.length + '건'; }
+  function addExample() {
+    var rec = {
+      id: newId(), createdAt: Date.now(), date: nowLocal(),
+      site: '예시 지점 (하천 중류)', nameKo: '송사리류', nameSci: 'Oryzias sp.', ident: '추정', count: 12,
+      lat: 37.4912, lon: 127.6018, acc: null, habitat: '하천 본류', method: '뜰채',
+      memo: '예시 기록이에요. 입력 방식을 확인한 뒤 삭제하세요.', photos: []
+    };
+    persist('records', rec).then(function () { records.push(rec); updateCount(); renderList(); });
+  }
+  function renderList() {
+    var box = $('list');
+    box.textContent = '';
+    var q = $('q').value.trim().toLowerCase();
+    if (records.length === 0) {
+      var e = el('div', 'empty');
+      e.appendChild(el('h2', null, '아직 기록이 없어요'));
+      e.appendChild(el('p', null, '현장에서 입력한 기록이 여기에 쌓여요. 먼저 입력 화면에서 첫 기록을 남겨 보세요.'));
+      var row = el('div', 'row');
+      var go = el('button', 'primary', '기록하러 가기');
+      go.type = 'button';
+      go.addEventListener('click', function () { location.hash = '#new'; });
+      var ex = el('button', null, '예시 기록 넣어 보기');
+      ex.type = 'button';
+      ex.addEventListener('click', addExample);
+      row.appendChild(go);
+      row.appendChild(ex);
+      e.appendChild(row);
+      box.appendChild(e);
+      return;
+    }
+    var rows = records.filter(function (r) {
+      if (!q) return true;
+      return [r.site, r.nameKo, r.nameSci, r.memo, r.habitat, r.method].join(' ').toLowerCase().indexOf(q) >= 0;
+    }).sort(function (a, b) { return (b.date || '') < (a.date || '') ? -1 : (b.date || '') > (a.date || '') ? 1 : 0; });
+    if (rows.length === 0) {
+      var none = el('div', 'empty');
+      none.appendChild(el('p', null, '검색 결과가 없어요.'));
+      box.appendChild(none);
+      return;
+    }
+    rows.forEach(function (r) {
+      var c = el('article', 'card');
+      var top = el('div', 'card-top');
+      top.appendChild(el('span', 'mono', showDate(r.date)));
+      if (r.count !== null && r.count !== undefined) top.appendChild(el('span', 'badge', r.count + '개체'));
+      c.appendChild(top);
+      var h = el('h3', null, r.nameKo || r.nameSci || '종명 미입력');
+      if (r.ident && r.ident !== '확정') h.appendChild(el('span', 'chip', r.ident));
+      c.appendChild(h);
+      if (r.nameSci) c.appendChild(el('p', 'sci', r.nameSci));
+      if (r.site) c.appendChild(el('p', 'site', r.site));
+      var meta = [r.habitat, r.method].filter(function (x) { return x; }).join(' · ');
+      if (meta) c.appendChild(el('p', 'meta', meta));
+      if (hasXY(r)) c.appendChild(el('p', 'coord', r.lat + ', ' + r.lon + (r.acc ? '  (±' + r.acc + 'm)' : '')));
+      if (r.memo) c.appendChild(el('p', 'memo', r.memo));
+      if (r.photos && r.photos.length) {
+        var th = el('div', 'thumbs');
+        r.photos.forEach(function (src, i) {
+          var t = el('div', 'thumb');
+          var img = el('img');
+          img.src = src;
+          img.alt = '사진 ' + (i + 1);
+          img.addEventListener('click', function () { openPhoto(src); });
+          t.appendChild(img);
+          th.appendChild(t);
+        });
+        c.appendChild(th);
+      }
+      var act = el('div', 'actions');
+      var ed = el('button', 'small', '수정');
+      ed.type = 'button';
+      ed.addEventListener('click', function () { setForm(r); location.hash = '#new'; window.scrollTo(0, 0); });
+      var del = el('button', 'small danger' + (confirmId === r.id ? ' sure' : ''), confirmId === r.id ? '한 번 더 누르면 삭제' : '삭제');
+      del.type = 'button';
+      del.addEventListener('click', function () {
+        if (confirmId !== r.id) {
+          confirmId = r.id;
+          clearTimeout(confirmTimer);
+          confirmTimer = setTimeout(function () { confirmId = null; renderList(); }, 3500);
+          renderList();
+          return;
+        }
+        clearTimeout(confirmTimer);
+        confirmId = null;
+        unpersist('records', r.id).then(function () {
+          records = records.filter(function (x) { return x.id !== r.id; });
+          updateCount();
+          renderList();
+          toast('삭제했어요');
+        });
+      });
+      act.appendChild(ed);
+      act.appendChild(del);
+      c.appendChild(act);
+      box.appendChild(c);
+    });
+  }
+
+  /* ---------- map ---------- */
+  function applyBase() {
+    if (!map) return;
+    if (baseLayer) { map.removeLayer(baseLayer); baseLayer = null; }
+    if (hybLayer) { map.removeLayer(hybLayer); hybLayer = null; }
+    var kind = $('basemap').value;
+    var key = getSet('vkey', '').trim();
+    var note = $('mapNote');
+    note.hidden = true;
+    if ((kind === 'vworld' || kind === 'vworld-h') && !key) {
+      note.hidden = false;
+      note.textContent = 'VWorld 인증키가 없어서 Esri 위성을 보여줘요. 더보기 > 지도 설정에서 키를 입력하세요.';
+      kind = 'esri';
+    }
+    if (kind === 'vworld' || kind === 'vworld-h') {
+      baseLayer = L.tileLayer('https://api.vworld.kr/req/wmts/1.0.0/' + encodeURIComponent(key) + '/Satellite/{z}/{y}/{x}.jpeg', { maxZoom: 20, maxNativeZoom: 19, attribution: 'VWorld' });
+      baseLayer.addTo(map);
+      if (kind === 'vworld-h') {
+        hybLayer = L.tileLayer('https://api.vworld.kr/req/wmts/1.0.0/' + encodeURIComponent(key) + '/Hybrid/{z}/{y}/{x}.png', { maxZoom: 20, maxNativeZoom: 19, zIndex: 3 });
+        hybLayer.addTo(map);
+      }
+    } else if (kind === 'google') {
+      baseLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { subdomains: ['0', '1', '2', '3'], maxZoom: 20, attribution: 'Google' });
+      baseLayer.addTo(map);
+    } else {
+      baseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri' });
+      baseLayer.addTo(map);
+    }
+  }
+  function initMap() {
+    if (map) return true;
+    if (!window.L) {
+      $('mapNote').hidden = false;
+      $('mapNote').textContent = '지도 라이브러리를 불러오지 못했어요. 인터넷이 연결된 곳에서 앱을 한 번 열어야 해요.';
+      return false;
+    }
+    map = L.map('map', { center: [36.4, 127.8], zoom: 7, preferCanvas: true });
+    recGroup = L.layerGroup().addTo(map);
+    applyBase();
+    renderRecordMarkers();
+    renderFileLayers();
+    return true;
+  }
+  function renderRecordMarkers() {
+    if (!map) return;
+    recGroup.clearLayers();
+    records.forEach(function (r) {
+      if (!hasXY(r)) return;
+      var m = L.circleMarker([r.lat, r.lon], { radius: 7, color: '#ffffff', weight: 2, fillColor: '#0b7a75', fillOpacity: 1 });
+      var d = el('div');
+      d.appendChild(el('strong', null, r.nameKo || r.nameSci || r.site || '기록'));
+      d.appendChild(el('div', null, showDate(r.date)));
+      if (r.site) d.appendChild(el('div', null, r.site));
+      if (r.count !== null && r.count !== undefined) d.appendChild(el('div', null, r.count + '개체'));
+      m.bindPopup(d);
+      recGroup.addLayer(m);
+    });
+  }
+  function updateMy() {
+    if (!map || !curPos) return;
+    var ll = [curPos.lat, curPos.lon];
+    if (!myMarker) {
+      myCircle = L.circle(ll, { radius: curPos.acc, color: '#2f80ff', weight: 1, fillOpacity: 0.12 }).addTo(map);
+      myMarker = L.circleMarker(ll, { radius: 7, color: '#ffffff', weight: 2, fillColor: '#2f80ff', fillOpacity: 1 }).addTo(map);
+    } else {
+      myMarker.setLatLng(ll);
+      myCircle.setLatLng(ll);
+      myCircle.setRadius(curPos.acc);
+    }
+    if (!firstFixDone) { firstFixDone = true; map.setView(ll, Math.max(map.getZoom(), 16)); }
+  }
+  function fitAll() {
+    if (!map) return;
+    var pts = [];
+    records.forEach(function (r) { if (hasXY(r)) pts.push([r.lat, r.lon]); });
+    layers.forEach(function (l) {
+      if (!l.visible) return;
+      l.features.forEach(function (f) { f.c.forEach(function (p) { pts.push(p); }); });
+    });
+    if (curPos) pts.push([curPos.lat, curPos.lon]);
+    if (pts.length === 0) { toast('표시할 기록이나 경로가 없어요'); return; }
+    map.fitBounds(L.latLngBounds(pts), { padding: [30, 30], maxZoom: 18 });
+  }
+
+  /* imported layers */
+  function childText(node, tag) {
+    var n = node.firstChild;
+    while (n) { if (n.nodeType === 1 && n.localName === tag) return String(n.textContent).trim(); n = n.nextSibling; }
+    return '';
+  }
+  function coordList(s) {
+    return String(s).trim().split(/\s+/).map(function (t) { var a = t.split(','); return [parseFloat(a[1]), parseFloat(a[0])]; })
+      .filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); });
+  }
+  function thin(c) {
+    if (c.length <= 4000) return c;
+    var step = Math.ceil(c.length / 4000), o = [];
+    for (var i = 0; i < c.length; i += step) o.push(c[i]);
+    if (o[o.length - 1] !== c[c.length - 1]) o.push(c[c.length - 1]);
+    return o;
+  }
+  function ptsOf(nodes) {
+    var o = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var a = parseFloat(nodes[i].getAttribute('lat')), b = parseFloat(nodes[i].getAttribute('lon'));
+      if (isFinite(a) && isFinite(b)) o.push([a, b]);
+    }
+    return o;
+  }
+  function parseGPX(doc) {
+    var f = [], i, j, nodes;
+    nodes = doc.getElementsByTagName('wpt');
+    for (i = 0; i < nodes.length; i++) {
+      var p = ptsOf([nodes[i]]);
+      if (p.length) f.push({ t: 'p', c: p, n: childText(nodes[i], 'name') });
+    }
+    nodes = doc.getElementsByTagName('rte');
+    for (i = 0; i < nodes.length; i++) {
+      var rp = ptsOf(nodes[i].getElementsByTagName('rtept'));
+      if (rp.length > 1) f.push({ t: 'l', c: thin(rp), n: childText(nodes[i], 'name') });
+    }
+    nodes = doc.getElementsByTagName('trk');
+    for (i = 0; i < nodes.length; i++) {
+      var segs = nodes[i].getElementsByTagName('trkseg'), nm = childText(nodes[i], 'name');
+      for (j = 0; j < segs.length; j++) {
+        var tp = ptsOf(segs[j].getElementsByTagName('trkpt'));
+        if (tp.length > 1) f.push({ t: 'l', c: thin(tp), n: nm });
+      }
+    }
+    return f;
+  }
+  function parseKML(doc) {
+    var f = [], pms = doc.getElementsByTagName('Placemark'), i, j, k;
+    for (i = 0; i < pms.length; i++) {
+      var pm = pms[i], nm = childText(pm, 'name'), g;
+      g = pm.getElementsByTagName('Point');
+      for (j = 0; j < g.length; j++) {
+        var pc = coordList(childText(g[j], 'coordinates'));
+        if (pc.length) f.push({ t: 'p', c: [pc[0]], n: nm });
+      }
+      g = pm.getElementsByTagName('LineString');
+      for (j = 0; j < g.length; j++) {
+        var lc = coordList(childText(g[j], 'coordinates'));
+        if (lc.length > 1) f.push({ t: 'l', c: thin(lc), n: nm });
+      }
+      g = pm.getElementsByTagName('Polygon');
+      for (j = 0; j < g.length; j++) {
+        var outer = g[j].getElementsByTagName('outerBoundaryIs')[0];
+        var ce = outer ? outer.getElementsByTagName('coordinates')[0] : null;
+        var gc = ce ? coordList(ce.textContent) : [];
+        if (gc.length > 2) f.push({ t: 'g', c: thin(gc), n: nm });
+      }
+      g = pm.getElementsByTagName('gx:coord');
+      if (g.length > 1) {
+        var tc = [];
+        for (k = 0; k < g.length; k++) {
+          var a = String(g[k].textContent).trim().split(/\s+/);
+          var la = parseFloat(a[1]), lo = parseFloat(a[0]);
+          if (isFinite(la) && isFinite(lo)) tc.push([la, lo]);
+        }
+        if (tc.length > 1) f.push({ t: 'l', c: thin(tc), n: nm });
+      }
+    }
+    return f;
+  }
+  function swap(c) { return c.map(function (p) { return [p[1], p[0]]; }); }
+  function geomToFeatures(g, name, out) {
+    if (!g || !g.type) return;
+    var t = g.type, c = g.coordinates, i;
+    if (t === 'Point') out.push({ t: 'p', c: [[c[1], c[0]]], n: name });
+    else if (t === 'MultiPoint') c.forEach(function (p) { out.push({ t: 'p', c: [[p[1], p[0]]], n: name }); });
+    else if (t === 'LineString') out.push({ t: 'l', c: thin(swap(c)), n: name });
+    else if (t === 'MultiLineString') c.forEach(function (l) { out.push({ t: 'l', c: thin(swap(l)), n: name }); });
+    else if (t === 'Polygon') out.push({ t: 'g', c: thin(swap(c[0])), n: name });
+    else if (t === 'MultiPolygon') c.forEach(function (pl) { out.push({ t: 'g', c: thin(swap(pl[0])), n: name }); });
+    else if (t === 'GeometryCollection') for (i = 0; i < g.geometries.length; i++) geomToFeatures(g.geometries[i], name, out);
+  }
+  function parseGeoJSON(obj) {
+    var out = [];
+    if (obj.type === 'FeatureCollection') {
+      obj.features.forEach(function (ft) {
+        var pr = ft.properties || {};
+        geomToFeatures(ft.geometry, String(pr.name || pr.Name || ''), out);
+      });
+    } else if (obj.type === 'Feature') {
+      var pr2 = obj.properties || {};
+      geomToFeatures(obj.geometry, String(pr2.name || pr2.Name || ''), out);
+    } else geomToFeatures(obj, '', out);
+    return out;
+  }
+  function parseGeoFile(text) {
+    var s = text.replace(/^﻿/, '').trim();
+    if (s.charAt(0) === '{') return parseGeoJSON(JSON.parse(s));
+    var doc = new DOMParser().parseFromString(s, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('xml');
+    var root = doc.documentElement.localName;
+    if (root === 'gpx') return parseGPX(doc);
+    if (root === 'kml') return parseKML(doc);
+    throw new Error('type');
+  }
+  function readText(file) {
+    return new Promise(function (resolve, reject) {
+      var fr = new FileReader();
+      fr.onload = function () { resolve(String(fr.result)); };
+      fr.onerror = function () { reject(fr.error); };
+      fr.readAsText(file);
+    });
+  }
+  function importGeo(files) {
+    var list = Array.prototype.slice.call(files);
+    return list.reduce(function (p, file) {
+      return p.then(function () {
+        return readText(file).then(function (text) {
+          var feats = parseGeoFile(text);
+          if (feats.length === 0) { toast(file.name + ': 읽을 수 있는 경로나 도형이 없어요'); return; }
+          var layer = { id: newId(), name: file.name.replace(/\.[^.]+$/, ''), fileName: file.name, visible: true, features: feats, addedAt: Date.now() };
+          return persist('layers', layer).then(function (ok) {
+            if (!ok) { toast(file.name + ': 저장 공간이 부족해요'); return; }
+            layers.push(layer);
+            toast(file.name + ' 불러옴 (' + feats.length + '개)');
+          });
+        }, function () { toast(file.name + ': 파일을 읽지 못했어요'); });
+      }).catch(function () { toast(file.name + ': 지원하지 않는 형식이에요'); });
+    }, Promise.resolve()).then(function () {
+      renderFileLayers();
+      renderLayerList();
+      if (map && layers.length) {
+        var last = fileGroups[layers[layers.length - 1].id];
+        if (last && last.getLayers().length) { try { map.fitBounds(L.featureGroup(last.getLayers()).getBounds(), { padding: [30, 30] }); } catch (e) { /* ignore */ } }
+      }
+    });
+  }
+  function buildGroup(lyr) {
+    var g = L.layerGroup();
+    lyr.features.forEach(function (f) {
+      var o;
+      if (f.t === 'l') o = L.polyline(f.c, { color: '#ffd400', weight: 3, opacity: 0.95 });
+      else if (f.t === 'g') o = L.polygon(f.c, { color: '#ff8a00', weight: 3, fillOpacity: 0.08, dashArray: '6 4' });
+      else o = L.circleMarker(f.c[0], { radius: 5, color: '#ffffff', weight: 1.5, fillColor: '#ffd400', fillOpacity: 1 });
+      if (f.n) { var d = el('span', null, f.n); o.bindTooltip(d); }
+      g.addLayer(o);
+    });
+    return g;
+  }
+  function renderFileLayers() {
+    if (!map) return;
+    Object.keys(fileGroups).forEach(function (id) { map.removeLayer(fileGroups[id]); });
+    fileGroups = {};
+    layers.forEach(function (l) {
+      var g = buildGroup(l);
+      fileGroups[l.id] = g;
+      if (l.visible) g.addTo(map);
+    });
+  }
+  function renderLayerList() {
+    var box = $('layerList');
+    box.textContent = '';
+    layers.forEach(function (l) {
+      var row = el('div', 'layer');
+      var cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = !!l.visible;
+      cb.setAttribute('aria-label', l.name + ' 표시');
+      cb.addEventListener('change', function () {
+        l.visible = cb.checked;
+        persist('layers', l);
+        if (map && fileGroups[l.id]) { if (l.visible) fileGroups[l.id].addTo(map); else map.removeLayer(fileGroups[l.id]); }
+      });
+      var nm = el('div', 'nm', l.name);
+      nm.appendChild(el('small', null, l.features.length + '개 요소'));
+      var go = el('button', 'small', '이동');
+      go.type = 'button';
+      go.addEventListener('click', function () {
+        if (!map || !fileGroups[l.id]) return;
+        if (!l.visible) { l.visible = true; cb.checked = true; fileGroups[l.id].addTo(map); persist('layers', l); }
+        try { map.fitBounds(L.featureGroup(fileGroups[l.id].getLayers()).getBounds(), { padding: [30, 30] }); } catch (e) { /* ignore */ }
+      });
+      var del = el('button', 'small danger' + (layerConfirm === l.id ? ' sure' : ''), layerConfirm === l.id ? '한 번 더' : '삭제');
+      del.type = 'button';
+      del.addEventListener('click', function () {
+        if (layerConfirm !== l.id) {
+          layerConfirm = l.id;
+          clearTimeout(layerTimer);
+          layerTimer = setTimeout(function () { layerConfirm = null; renderLayerList(); }, 3500);
+          renderLayerList();
+          return;
+        }
+        clearTimeout(layerTimer);
+        layerConfirm = null;
+        unpersist('layers', l.id).then(function () {
+          if (map && fileGroups[l.id]) { map.removeLayer(fileGroups[l.id]); delete fileGroups[l.id]; }
+          layers = layers.filter(function (x) { return x.id !== l.id; });
+          renderLayerList();
+          toast('파일을 지웠어요');
+        });
+      });
+      row.appendChild(cb);
+      row.appendChild(nm);
+      row.appendChild(go);
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  /* ---------- export / backup ---------- */
+  function csvCell(v) {
+    var s = v === null || v === undefined ? '' : String(v);
+    if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  function buildCSV() {
+    var head = ['조사일시', '지점명', '종명', '학명', '동정', '개체수', '위도', '경도', '정확도(m)', '서식지', '채집방법', '메모', '사진수'];
+    var rows = records.slice().sort(function (a, b) { return (a.date || '') < (b.date || '') ? -1 : (a.date || '') > (b.date || '') ? 1 : 0; });
+    var lines = [head.map(csvCell).join(',')];
+    rows.forEach(function (r) {
+      lines.push([showDate(r.date), r.site, r.nameKo, r.nameSci, r.ident, r.count, r.lat, r.lon, r.acc, r.habitat, r.method, r.memo, (r.photos || []).length].map(csvCell).join(','));
+    });
+    return lines.join('\r\n');
+  }
+  function stamp() { return nowLocal().replace(/[-:T]/g, ''); }
+  function renderMore() {
+    var xy = 0, ph = 0;
+    records.forEach(function (r) { if (hasXY(r)) xy++; ph += (r.photos || []).length; });
+    $('st-n').textContent = records.length;
+    $('st-xy').textContent = xy;
+    $('st-ph').textContent = ph;
+    $('csvBox').value = buildCSV();
+    var has = records.length > 0;
+    $('csvSave').disabled = !has;
+    $('csvCopy').disabled = !has;
+    $('bkSave').disabled = !has && layers.length === 0;
+    $('vkey').value = getSet('vkey', '');
+  }
+  function saveFile(name, data, type, okMsg) {
+    var blob = new Blob([data], { type: type });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    toast(okMsg);
+  }
+  function copyCSV() {
+    var text = buildCSV();
+    var fallback = function () {
+      var box = $('csvBox');
+      box.value = text;
+      box.parentNode.open = true;
+      box.focus();
+      box.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      toast(ok ? 'CSV를 복사했어요' : '내용을 선택했어요. 길게 눌러 복사하세요');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast('CSV를 복사했어요'); }, fallback);
+    } else { fallback(); }
+  }
+  function restoreBackup(file) {
+    readText(file).then(function (text) {
+      var data;
+      try { data = JSON.parse(text); } catch (e) { toast('백업 파일을 읽지 못했어요'); return; }
+      if (!data || data.app !== 'field-notes' || !Array.isArray(data.records)) { toast('이 앱의 백업 파일이 아니에요'); return; }
+      var haveR = {}, haveL = {}, addR = [], addL = [];
+      records.forEach(function (r) { haveR[r.id] = true; });
+      layers.forEach(function (l) { haveL[l.id] = true; });
+      data.records.forEach(function (r) { if (r && typeof r.id === 'string' && !haveR[r.id]) { addR.push(r); haveR[r.id] = true; } });
+      (Array.isArray(data.layers) ? data.layers : []).forEach(function (l) { if (l && typeof l.id === 'string' && Array.isArray(l.features) && !haveL[l.id]) { addL.push(l); haveL[l.id] = true; } });
+      Promise.all(addR.map(function (r) { return persist('records', r); }).concat(addL.map(function (l) { return persist('layers', l); }))).then(function () {
+        records = records.concat(addR);
+        layers = layers.concat(addL);
+        updateCount();
+        renderMore();
+        toast('기록 ' + addR.length + '건, 경로 파일 ' + addL.length + '개를 불러왔어요');
+      });
+    }, function () { toast('백업 파일을 읽지 못했어요'); });
+  }
+
+  /* ---------- routing ---------- */
+  function route() {
+    var name = currentView();
+    VIEWS.forEach(function (n) {
+      $('view-' + n).className = 'view' + (n === name ? ' on' : '');
+      $('tab-' + n).className = n === name ? 'on' : '';
+      if (n === name) $('tab-' + n).setAttribute('aria-current', 'page'); else $('tab-' + n).removeAttribute('aria-current');
+    });
+    if (name === 'map') {
+      if (initMap()) {
+        setTimeout(function () { map.invalidateSize(); }, 60);
+        renderRecordMarkers();
+      }
+      renderLayerList();
+      updateGpsStatus();
+    }
+    if (name === 'list') renderList();
+    if (name === 'more') renderMore();
+    syncWatch();
+  }
+
+  /* ---------- wire up ---------- */
+  $('form').addEventListener('submit', onSave);
+  $('cancelBtn').addEventListener('click', function () { resetForm(); toast('수정을 취소했어요'); });
+  $('gpsBtn').addEventListener('click', function () {
+    var b = $('gpsBtn');
+    b.disabled = true;
+    b.textContent = '위치 확인 중…';
+    getFix().then(function (f) {
+      $('f-lat').value = f.lat.toFixed(6);
+      $('f-lon').value = f.lon.toFixed(6);
+      formAcc = Math.round(f.acc);
+      curPos = f;
+      checkCoordHint();
+    }, function (e) {
+      var h = $('coordHint');
+      h.className = 'hint warn';
+      h.textContent = gpsErrText(e);
+    }).then(function () { b.disabled = false; b.textContent = '현재 위치로 입력'; });
+  });
+  $('f-lat').addEventListener('input', function () { formAcc = null; checkCoordHint(); });
+  $('f-lon').addEventListener('input', function () { formAcc = null; checkCoordHint(); });
+  $('f-paste').addEventListener('input', function () {
+    var c = parseCoord($('f-paste').value);
+    if (c) { formAcc = null; $('f-lat').value = c.lat; $('f-lon').value = c.lon; checkCoordHint(); }
+  });
+  $('camBtn').addEventListener('click', openCamera);
+  $('camClose').addEventListener('click', closeCamera);
+  $('camShot').addEventListener('click', shoot);
+  $('f-photo').addEventListener('change', function (e) {
+    var f = e.target.files;
+    if (f && f.length) addPhotos(f).then(function () { e.target.value = ''; });
+  });
+  $('q').addEventListener('input', renderList);
+  $('basemap').addEventListener('change', function () { setSet('basemap', $('basemap').value); applyBase(); });
+  $('locBtn').addEventListener('click', function () {
+    startWatch();
+    if (curPos && map) map.setView([curPos.lat, curPos.lon], Math.max(map.getZoom(), 17));
+    else toast('위치를 찾는 중이에요');
+  });
+  $('fitBtn').addEventListener('click', fitAll);
+  $('geoFile').addEventListener('change', function (e) {
+    var f = e.target.files;
+    if (f && f.length) importGeo(f).then(function () { e.target.value = ''; });
+  });
+  $('vkeySave').addEventListener('click', function () {
+    setSet('vkey', $('vkey').value.trim());
+    if ($('basemap').value === 'esri' || $('basemap').value === 'google') { /* keep user's choice */ } else applyBase();
+    toast('인증키를 저장했어요');
+  });
+  $('csvSave').addEventListener('click', function () { saveFile('현장조사_' + stamp() + '.csv', '﻿' + buildCSV(), 'text/csv;charset=utf-8', 'CSV를 저장했어요'); });
+  $('csvCopy').addEventListener('click', copyCSV);
+  $('bkSave').addEventListener('click', function () {
+    saveFile('현장조사_백업_' + stamp() + '.json', JSON.stringify({ app: 'field-notes', version: 2, records: records, layers: layers }), 'application/json', '백업 파일을 저장했어요');
+  });
+  $('bkLoad').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (f) restoreBackup(f);
+    e.target.value = '';
+  });
+  window.addEventListener('hashchange', route);
+  function setNet() { $('net').hidden = navigator.onLine !== false; }
+  window.addEventListener('online', setNet);
+  window.addEventListener('offline', setNet);
+
+  $('basemap').value = getSet('basemap', 'vworld');
+  if (!$('basemap').value) $('basemap').value = 'vworld';
+  setNet();
+  resetForm();
+  route();
+  loadAll().then(function () { updateCount(); route(); });
+  if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(function () { /* ignore */ }); }
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* ignore */ }); });
+  }
+})();
+</script>
+</body>
+</html>
